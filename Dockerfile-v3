@@ -46,9 +46,10 @@ RUN sudo apt-get install -yq --no-install-recommends \
     sudo rm -rf /var/lib/apt/lists/*
 
 # ── PHP 8.4-FPM + extensions ───────────────────────────────────────────────────
-# php8.4-dev  — PHP headers required by pecl to compile the MongoDB extension.
-# php-pear    — provides the pecl command.
-# php8.4-gd   — built by ondrej/php with --with-freetype and --with-jpeg.
+# php8.4-dev     — PHP headers required by pecl to compile the MongoDB extension.
+# php-pear       — provides the pecl command.
+# php8.4-gd      — built by ondrej/php with --with-freetype and --with-jpeg.
+# php8.4-sqlite3 — provides sqlite3, pdo, and pdo_sqlite extensions.
 # Verification step fails the build if gd lacks FreeType or JPEG support.
 RUN sudo apt-get update -yq && \
     sudo apt-get install -yq --no-install-recommends \
@@ -56,17 +57,22 @@ RUN sudo apt-get update -yq && \
         php8.4-fpm \
         php8.4-cli \
         php8.4-dev \
+        php8.4-bcmath \
         php8.4-curl \
+        php8.4-exif \
         php8.4-gd \
         php8.4-mbstring \
         php8.4-xml \
         php8.4-zip \
         php8.4-intl \
         php8.4-gmp \
+        php8.4-soap \
+        php8.4-sqlite3 \
+        php8.4-redis \
         php-pear && \
     php -r "phpinfo();" | grep -i "freetype" > /dev/null && \
     php -r "phpinfo();" | grep -i "jpeg" > /dev/null && \
-    sudo phpenmod -v 8.4 curl gd mbstring xml zip intl gmp && \
+    sudo phpenmod -v 8.4 bcmath curl exif gd intl mbstring gmp redis soap sqlite3 xml zip && \
     sudo rm -rf /var/lib/apt/lists/*
 
 # ── MongoDB PHP extension 2.3.3 (via pecl) ─────────────────────────────────────

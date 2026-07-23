@@ -1,0 +1,106 @@
+# Dockerfile-v3
+# ARC runner image with nvm, Node.js 22 (default) + 24, PHP 8.4-FPM,
+# MongoDB PHP extension 2.3.3, and required system libraries.
+#
+# Base:    ghcr.io/actions/actions-runner:2.336.0 (Ubuntu 24.04 Noble)
+# Targets: linux/amd64, linux/arm64
+
+FROM ghcr.io/actions/actions-runner:2.336.0
+
+# ── Environment ────────────────────────────────────────────────────────────────
+ENV DEBIAN_FRONTEND=noninteractive \
+    NVM_DIR=/home/runner/.nvm
+
+# ── Bootstrap: gnupg + software-properties-common ─────────────────────────────
+# Required to import the ondrej/php PPA signing key and run add-apt-repository.
+# Isolated layer so changes to the system-library list below don't invalidate this.
+RUN sudo apt-get update -yq && \
+    sudo apt-get install -yq --no-install-recommends \
+        gnupg \
+        software-properties-common && \
+    sudo rm -rf /var/lib/apt/lists/*
+
+# ── PHP 8.4 PPA ────────────────────────────────────────────────────────────────
+# Ubuntu 24.04 does not ship PHP 8.4 in its default repositories.
+# The ondrej/php PPA is the standard community source for PHP 8.4 on Ubuntu.
+RUN sudo add-apt-repository -y ppa:ondrej/php && \
+    sudo apt-get update -yq
+
+# ── System libraries ───────────────────────────────────────────────────────────
+# Build-time and runtime dependencies for PHP extensions (gd, curl, zip, intl,
+# gmp, mongodb). Installed before PHP so this layer is cached on PHP version bumps.
+RUN sudo apt-get install -yq --no-install-recommends \
+        build-essential \
+        libcurl4-openssl-dev \
+        pkg-config \
+        libssl-dev \
+        libfreetype6-dev \
+        libjpeg-turbo8-dev \
+        libpng-dev \
+        zlib1g-dev \
+        libzip-dev \
+        libonig-dev \
+        libxml2-dev \
+        libicu-dev \
+        libgmp-dev && \
+    sudo rm -rf /var/lib/apt/lists/*
+
+# ── PHP 8.4-FPM + extensions ───────────────────────────────────────────────────
+# php8.4-dev  — PHP headers required by pecl to compile the MongoDB extension.
+# php-pear    — provides the pecl command.
+# php8.4-gd   — built by ondrej/php with --with-freetype and --with-jpeg.
+# Verification step fails the build if gd lacks FreeType or JPEG support.
+RUN sudo apt-get update -yq && \
+    sudo apt-get install -yq --no-install-recommends \
+        php8.4 \
+        php8.4-fpm \
+        php8.4-cli \
+        php8.4-dev \
+        php8.4-curl \
+        php8.4-gd \
+        php8.4-mbstring \
+        php8.4-xml \
+        php8.4-zip \
+        php8.4-intl \
+        php8.4-gmp \
+        php-pear && \
+    php -r "phpinfo();" | grep -i "freetype" > /dev/null && \
+    php -r "phpinfo();" | grep -i "jpeg" > /dev/null && \
+    sudo phpenmod -v 8.4 curl gd mbstring xml zip intl gmp && \
+    sudo rm -rf /var/lib/apt/lists/*
+
+# ── MongoDB PHP extension 2.3.3 (via pecl) ─────────────────────────────────────
+# Compiles the driver against PHP 8.4 headers installed above.
+# Isolated layer: bumping the driver version only re-runs this step.
+RUN sudo pecl install mongodb-2.3.3 && \
+    echo "extension=mongodb.so" | sudo tee /etc/php/8.4/mods-available/mongodb.ini > /dev/null && \
+    sudo phpenmod -v 8.4 mongodb
+
+# ── nvm + Node.js 22 (default) + Node.js 24 ───────────────────────────────────
+# Installed as root with HOME overridden so nvm lands in /home/runner/.nvm.
+# Ownership is corrected to runner:runner after installation.
+#
+# Both Node 22 and Node 24 are pre-installed; 22 is set as the default alias.
+#
+# /etc/environment PATH is updated with the Node 22 bin directory so that
+# non-interactive, non-login shells (the GitHub Actions default) can resolve
+# `node` and `npm` without sourcing nvm explicitly.
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/HEAD/install.sh | sudo HOME=/home/runner bash && \
+    sudo chown -R runner:runner /home/runner/.nvm && \
+    # Install Node 22 and 24; set 22 as default
+    bash -c ". $NVM_DIR/nvm.sh && nvm install 22 && nvm install 24 && nvm alias default 22 && nvm use default" && \
+    # Append nvm init to .bashrc (interactive non-login shells)
+    echo 'export NVM_DIR="$HOME/.nvm"'                                      >> /home/runner/.bashrc && \
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'                >> /home/runner/.bashrc && \
+    echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> /home/runner/.bashrc && \
+    # Append nvm init to .profile (login shells)
+    echo 'export NVM_DIR="$HOME/.nvm"'                                      >> /home/runner/.profile && \
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'                >> /home/runner/.profile && \
+    # Add Node 22 bin to system PATH for non-interactive shells
+    NODE22_BIN=$(bash -c ". $NVM_DIR/nvm.sh && nvm which 22 | xargs dirname") && \
+    echo "PATH=${NODE22_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+        | sudo tee /etc/environment > /dev/null
+
+# ── Restore runner user ────────────────────────────────────────────────────────
+# ARC requires the container to run as the `runner` user.
+USER runner

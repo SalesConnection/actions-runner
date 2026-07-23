@@ -1,0 +1,185 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Create `Dockerfile-v3` with the base image and environment declarations": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785007674
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785015505
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785053408
+      }
+    ],
+    "2. Add bootstrap layer (gnupg + software-properties-common)": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785007822
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785057589
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785105105
+      }
+    ],
+    "3. Register the ondrej/php PPA": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785007862
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785108631
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785141478
+      }
+    ],
+    "4. Install system libraries": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785007892
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785144865
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785180641
+      }
+    ],
+    "5. Install PHP 8.4-FPM and extensions": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785007916
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785184097
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785228380
+      }
+    ],
+    "6. Install MongoDB PHP extension 2.3.3 via pecl": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785007944
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785232339
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785355267
+      }
+    ],
+    "7. Install nvm and pre-install Node.js 22 and 24": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785007972
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785359322
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785568493
+      }
+    ],
+    "8. Add `USER runner` as the final instruction": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785007993
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785576150
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785610032
+      }
+    ],
+    "9. Update `.github/workflows/docker-build.yml` to build `Dockerfile-v3`": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785008033
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785614019
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785660031
+      }
+    ],
+    "10. Local build verification": [
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785008055
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785663696
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785782210
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784785787520
+      },
+      {
+        "executionId": "5c769ae6-ec89-41e4-b533-25c30443424a",
+        "chatSessionId": "sess_80165ae9-af05-4790-8162-9e7647fd380e",
+        "timestamp": 1784790307099
+      }
+    ]
+  }
+}

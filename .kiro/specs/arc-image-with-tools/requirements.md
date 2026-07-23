@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This specification covers the construction of a custom ARC (Actions Runner Controller) Docker image that extends the official GitHub Actions runner base image with a set of pre-installed development tools and PHP infrastructure. The resulting image is intended for use as a self-hosted runner in GitHub Actions workflows that require Node.js (via nvm), PHP 8.4 with FPM, MongoDB integration via PHP, and a set of common system libraries — all ready to use without additional provisioning steps at job runtime.
+This specification covers the construction of a custom ARC (Actions Runner Controller) Docker image that extends the official GitHub Actions runner base image with a set of pre-installed development tools and PHP infrastructure. The resulting image is intended for use as a self-hosted runner in GitHub Actions workflows that require Node.js (via nvm), PHP 8.4 with FPM, MongoDB integration via PHP, SSH agent support for key management and forwarding, and a set of common system libraries — all ready to use without additional provisioning steps at job runtime.
 
 The image is built and distributed via Docker Hub under the `jayscgi/actions-runner` repository, tagged by version and `latest`, targeting both `linux/amd64` and `linux/arm64` platforms. The Dockerfile shall be named `Dockerfile-v3` to follow the existing versioning convention.
 
@@ -83,6 +83,16 @@ The image is built and distributed via Docker Hub under the `jayscgi/actions-run
 1. The Dockerfile shall include inline comments identifying the purpose of each major installation block (e.g., system libraries, PHP, nvm, MongoDB extension).
 2. All pinned dependency versions (e.g., `mongodb-2.3.3`, `summerwind/actions-runner:ubuntu-24.04`) shall be explicitly stated in the relevant `RUN` commands or `FROM` instruction.
 3. The Dockerfile shall be named `Dockerfile-v3` to follow the existing versioning convention (`Dockerfile`, `Dockerfile-v2`) in the repository.
+
+### Requirement 9: SSH Agent
+
+**User Story:** As a developer using the runner, I want `ssh-agent` and `ssh-add` pre-installed so that CI jobs can use SSH agent forwarding and manage SSH keys without any additional setup steps.
+
+1. THE Image SHALL install the `openssh-client` package via `apt-get` so that the `ssh-agent` and `ssh-add` binaries are present in the image.
+2. WHEN `openssh-client` is added to the package installation list, THE Dockerfile SHALL consolidate it into the existing system libraries `apt-get` layer (Requirement 2) to avoid introducing an additional image layer.
+3. THE runner user SHALL be able to execute `ssh-agent` and `ssh-add` without requiring `sudo`.
+4. WHEN a CI job step invokes `ssh-agent`, THE runner user SHALL be able to start a new agent process and obtain a valid `SSH_AUTH_SOCK` socket path.
+5. WHEN an `ssh-agent` process is running, THE runner user SHALL be able to load an SSH private key into the agent using `ssh-add` as part of a normal CI job step.
 
 ---
 

@@ -19,7 +19,7 @@
   - **Requirement:** 3.1
 
 - [x] 4. Install system libraries
-  - Install all 14 libraries in one `RUN`: `build-essential`, `libcurl4-openssl-dev`, `pkg-config`,
+  - Install all 13 libraries in one `RUN`: `build-essential`, `libcurl4-openssl-dev`, `pkg-config`,
     `libssl-dev`, `libfreetype6-dev`, `libjpeg-turbo8-dev`, `libpng-dev`,
     `zlib1g-dev`, `libzip-dev`, `libonig-dev`, `libxml2-dev`, `libicu-dev`,
     `libgmp-dev`
@@ -84,3 +84,12 @@
   - Run `docker build -f Dockerfile-v3 --check .` (BuildKit dry-run) if Docker is available, to catch syntax errors without a full build
   - Produce a pass/fail summary for each check above
   - **Requirement:** 1.1, 1.3, 2.1, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.2, 4.3, 5.1, 5.5, 6.3
+
+- [x] 12. Add SSH agent support (`openssh-client`) — Requirement 9
+  - Add `openssh-client` to the system libraries `RUN` block in `Dockerfile-v3` (consolidate with task 4's layer, not a new layer)
+  - Verify `ssh-agent` and `ssh-add` binaries are present in the image after the build
+  - Confirm the runner user can execute `ssh-agent` and `ssh-add` without `sudo`
+  - Run a smoke test: `eval $(ssh-agent -s)` produces a valid `SSH_AUTH_SOCK` socket path
+  - Update the system libraries comment in `Dockerfile-v3` to note `openssh-client`
+  - Re-run task 11 validation checks after this change to confirm nothing regressed
+  - **Requirement:** 9.1, 9.2, 9.3, 9.4, 9.5

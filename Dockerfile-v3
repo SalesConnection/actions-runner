@@ -28,7 +28,8 @@ RUN sudo add-apt-repository -y ppa:ondrej/php && \
 
 # ── System libraries ───────────────────────────────────────────────────────────
 # Build-time and runtime dependencies for PHP extensions (gd, curl, zip, intl,
-# gmp, mongodb). Installed before PHP so this layer is cached on PHP version bumps.
+# gmp, mongodb) and SSH agent support (openssh-client).
+# Installed before PHP so this layer is cached on PHP version bumps.
 RUN sudo apt-get install -yq --no-install-recommends \
         build-essential \
         libcurl4-openssl-dev \
@@ -42,7 +43,8 @@ RUN sudo apt-get install -yq --no-install-recommends \
         libonig-dev \
         libxml2-dev \
         libicu-dev \
-        libgmp-dev && \
+        libgmp-dev \
+        openssh-client && \
     sudo rm -rf /var/lib/apt/lists/*
 
 # ── PHP 8.4-FPM + extensions ───────────────────────────────────────────────────

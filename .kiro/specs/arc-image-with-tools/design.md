@@ -80,11 +80,14 @@ PHP version doesn't require re-fetching the PPA metadata.
 
 ### 2.5 System Libraries
 
-All 13 required libraries are installed in a single `RUN` command, followed immediately
+All required libraries are installed in a single `RUN` command, followed immediately
 by `rm -rf /var/lib/apt/lists/*` to keep the layer lean. They are placed before the PHP
 layer because they are its build-time and runtime dependencies — if PHP is reinstalled,
 these libraries are already cached. `build-essential` (gcc, make) is included because
 `pecl` compiles the MongoDB extension from C source at build time.
+
+> **Note:** `openssh-client` (Requirement 9) is **not installed** in `Dockerfile-v3`.
+> SSH agent support is deferred — see Section 9.
 
 ### 2.6 PHP 8.4-FPM, Extensions, and pecl
 
@@ -276,12 +279,14 @@ complexity.
 
 ## 8. Complete Dockerfile-v3
 
+The listing below is an exact copy of `Dockerfile-v3` as it exists in the repository.
+
 ```dockerfile
 # Dockerfile-v3
 # ARC runner image with nvm, Node.js 22 (default) + 24, PHP 8.4-FPM,
 # MongoDB PHP extension 2.3.3, and required system libraries.
 #
-# Base:    summerwind/actions-runner:ubuntu-24.04 (Ubuntu 24.04 Noble)
+# Base:    summerwind/actions-runner:ubuntu-24.04
 # Targets: linux/amd64, linux/arm64
 
 FROM summerwind/actions-runner:ubuntu-24.04
@@ -391,19 +396,51 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/HEAD/install.sh | sudo
 USER runner
 ```
 
+### Validation (Task 11)
+
+A static validation task (task 11) was added to the spec to verify `Dockerfile-v3`
+correctness against the spec checklist. The checks include: confirming the `FROM`
+instruction, `ENV` declarations, bootstrap layer, PPA registration step, all 13 system
+libraries, PHP packages and `phpenmod` calls, FreeType/JPEG verification greps, MongoDB
+pecl install and `.ini` write, nvm setup with both Node versions, and `USER runner` as
+the final instruction. A `docker build --check` dry-run is also run when Docker is
+available to catch syntax errors without a full build.
+
 ---
 
-## 9. Workflow Integration Notes
+## 9. SSH Agent (Requirement 9 — Deferred)
 
-The existing `.github/workflows/docker-build.yml` needs one addition — a `file`
-parameter pointing to `Dockerfile-v3`:
+> **Not implemented in `Dockerfile-v3`.** Requirement 9 (SSH Agent) is out of scope for
+> this version of the image. `openssh-client` is **not** installed, and `ssh-agent` /
+> `ssh-add` are **not** present in the image.
+>
+> When SSH agent support is added in a future iteration, the recommended approach is to
+> consolidate `openssh-client` into the existing system libraries `RUN` block (Section
+> 2.5) to satisfy Requirement 9.2 (no additional layer). The binaries are owned by root
+> with world-execute permissions, so the runner user can invoke them without `sudo`
+> once the package is installed.
+>
+> No agent socket or daemon should be pre-started in the image. Jobs would start the
+> agent on demand:
+>
+> ```bash
+> eval $(ssh-agent -s)
+> echo "${{ secrets.DEPLOY_KEY }}" | ssh-add -
+> ```
+
+---
+
+## 10. Workflow Integration Notes
+
+The `.github/workflows/docker-build.yml` workflow has been updated to build
+`Dockerfile-v3`. The relevant step currently reads:
 
 ```yaml
 - name: Build and push Docker image
   uses: docker/build-push-action@v5
   with:
     context: .
-    file: Dockerfile-v3          # ← add this line
+    file: Dockerfile-v3
     platforms: linux/amd64,linux/arm64
     push: true
     tags: jayscgi/actions-runner:${{ github.ref_name }},jayscgi/actions-runner:latest
@@ -411,4 +448,4 @@ parameter pointing to `Dockerfile-v3`:
 ```
 
 All other workflow steps (QEMU, Buildx, Docker Hub login) are already compatible with
-this image and require no changes.
+this image and required no changes.

@@ -2,7 +2,7 @@
 
 ## 1. Architecture Overview
 
-The image extends `ghcr.io/actions/actions-runner:2.336.0` (Ubuntu 24.04 Noble) in a
+The image extends `summerwind/actions-runner:ubuntu-24.04` (Ubuntu 24.04 Noble) in a
 single stage. There is no multi-stage build — all toolchains must be present at runtime
 and the size savings from a multi-stage approach are negligible because compiled PHP
 extensions still require their shared runtime libraries in the final image.
@@ -12,7 +12,7 @@ libraries, PHP) are placed early so that bumping only the MongoDB driver version
 Node version doesn't invalidate those heavyweight layers.
 
 ```
-ghcr.io/actions/actions-runner:2.336.0   ← upstream ARC base (Ubuntu 24.04)
+summerwind/actions-runner:ubuntu-24.04   ← upstream ARC base (Ubuntu 24.04)
         │
         ▼
   ENV declarations                        ← no filesystem cost; sets DEBIAN_FRONTEND + NVM_DIR
@@ -46,10 +46,10 @@ ghcr.io/actions/actions-runner:2.336.0   ← upstream ARC base (Ubuntu 24.04)
 ### 2.1 Base Image
 
 ```dockerfile
-FROM ghcr.io/actions/actions-runner:2.336.0
+FROM summerwind/actions-runner:ubuntu-24.04
 ```
 
-Matches `Dockerfile-v2` and the ARC `ghcr.io` image track. All runner binaries and
+Matches the ARC `summerwind` image track. All runner binaries and
 configuration from the base image are preserved unchanged.
 
 ### 2.2 Environment Variables
@@ -83,14 +83,19 @@ PHP version doesn't require re-fetching the PPA metadata.
 All 13 required libraries are installed in a single `RUN` command, followed immediately
 by `rm -rf /var/lib/apt/lists/*` to keep the layer lean. They are placed before the PHP
 layer because they are its build-time and runtime dependencies — if PHP is reinstalled,
-these libraries are already cached.
+these libraries are already cached. `build-essential` (gcc, make) is included because
+`pecl` compiles the MongoDB extension from C source at build time.
 
 ### 2.6 PHP 8.4-FPM, Extensions, and pecl
 
 Installs PHP from the ondrej/php PPA (Ubuntu 24.04 does not ship PHP 8.4 in its default
 repos). `php8.4-dev` provides the headers needed by pecl. `php-pear` provides the pecl
-binary. All extensions (`curl`, `gd`, `mbstring`, `xml`, `zip`, `intl`, `gmp`) are
-enabled for both CLI and FPM SAPIs via `phpenmod -v 8.4`.
+binary. All extensions (`bcmath`, `curl`, `exif`, `gd`, `mbstring`, `xml`, `zip`,
+`intl`, `gmp`, `redis`, `soap`, `sqlite3` (pdo + pdo_sqlite)) are enabled for both CLI
+and FPM SAPIs via `phpenmod -v 8.4 bcmath curl exif gd intl mbstring gmp redis soap sqlite3 xml zip`.
+
+`php8.4-sqlite3` provides the `sqlite3`, `pdo`, and `pdo_sqlite` extensions.
+`php8.4-redis` provides Redis support.
 
 A build-time verification step checks that the `gd` extension reports FreeType and JPEG
 support (the ondrej/php `php8.4-gd` package builds with both by default; the check fails
@@ -206,7 +211,7 @@ Workflows that need Node 24 use `source ~/.nvm/nvm.sh && nvm use 24` or
 
 | Component | amd64 | arm64 | Notes |
 |-----------|:-----:|:-----:|-------|
-| Base image | ✓ | ✓ | `ghcr.io/actions/actions-runner:2.336.0` publishes both platforms |
+| Base image | ✓ | ✓ | `summerwind/actions-runner:ubuntu-24.04` publishes both platforms |
 | ondrej/php PPA | ✓ | ✓ | Provides arm64 debs for Ubuntu Noble |
 | System libraries | ✓ | ✓ | Available in Ubuntu main for both arches |
 | nvm | ✓ | ✓ | Shell script; architecture-agnostic |
@@ -276,10 +281,10 @@ complexity.
 # ARC runner image with nvm, Node.js 22 (default) + 24, PHP 8.4-FPM,
 # MongoDB PHP extension 2.3.3, and required system libraries.
 #
-# Base:    ghcr.io/actions/actions-runner:2.336.0 (Ubuntu 24.04 Noble)
+# Base:    summerwind/actions-runner:ubuntu-24.04 (Ubuntu 24.04 Noble)
 # Targets: linux/amd64, linux/arm64
 
-FROM ghcr.io/actions/actions-runner:2.336.0
+FROM summerwind/actions-runner:ubuntu-24.04
 
 # ── Environment ────────────────────────────────────────────────────────────────
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -304,11 +309,12 @@ RUN sudo add-apt-repository -y ppa:ondrej/php && \
 # Build-time and runtime dependencies for PHP extensions (gd, curl, zip, intl,
 # gmp, mongodb). Installed before PHP so this layer is cached on PHP version bumps.
 RUN sudo apt-get install -yq --no-install-recommends \
+        build-essential \
         libcurl4-openssl-dev \
         pkg-config \
         libssl-dev \
         libfreetype6-dev \
-        libjpeg62-turbo-dev \
+        libjpeg-turbo8-dev \
         libpng-dev \
         zlib1g-dev \
         libzip-dev \
@@ -319,9 +325,10 @@ RUN sudo apt-get install -yq --no-install-recommends \
     sudo rm -rf /var/lib/apt/lists/*
 
 # ── PHP 8.4-FPM + extensions ───────────────────────────────────────────────────
-# php8.4-dev  — PHP headers required by pecl to compile the MongoDB extension.
-# php-pear    — provides the pecl command.
-# php8.4-gd   — built by ondrej/php with --with-freetype and --with-jpeg.
+# php8.4-dev     — PHP headers required by pecl to compile the MongoDB extension.
+# php-pear       — provides the pecl command.
+# php8.4-gd      — built by ondrej/php with --with-freetype and --with-jpeg.
+# php8.4-sqlite3 — provides sqlite3, pdo, and pdo_sqlite extensions.
 # Verification step fails the build if gd lacks FreeType or JPEG support.
 RUN sudo apt-get update -yq && \
     sudo apt-get install -yq --no-install-recommends \
@@ -329,17 +336,22 @@ RUN sudo apt-get update -yq && \
         php8.4-fpm \
         php8.4-cli \
         php8.4-dev \
+        php8.4-bcmath \
         php8.4-curl \
+        php8.4-exif \
         php8.4-gd \
         php8.4-mbstring \
         php8.4-xml \
         php8.4-zip \
         php8.4-intl \
         php8.4-gmp \
+        php8.4-soap \
+        php8.4-sqlite3 \
+        php8.4-redis \
         php-pear && \
     php -r "phpinfo();" | grep -i "freetype" > /dev/null && \
     php -r "phpinfo();" | grep -i "jpeg" > /dev/null && \
-    sudo phpenmod -v 8.4 curl gd mbstring xml zip intl gmp && \
+    sudo phpenmod -v 8.4 bcmath curl exif gd intl mbstring gmp redis soap sqlite3 xml zip && \
     sudo rm -rf /var/lib/apt/lists/*
 
 # ── MongoDB PHP extension 2.3.3 (via pecl) ─────────────────────────────────────

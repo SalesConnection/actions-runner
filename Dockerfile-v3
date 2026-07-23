@@ -2,10 +2,10 @@
 # ARC runner image with nvm, Node.js 22 (default) + 24, PHP 8.4-FPM,
 # MongoDB PHP extension 2.3.3, and required system libraries.
 #
-# Base:    ghcr.io/actions/actions-runner:2.336.0 (Ubuntu 24.04 Noble)
+# Base:    summerwind/actions-runner:ubuntu-24.04
 # Targets: linux/amd64, linux/arm64
 
-FROM ghcr.io/actions/actions-runner:2.336.0
+FROM summerwind/actions-runner:ubuntu-24.04
 
 # ── Environment ────────────────────────────────────────────────────────────────
 ENV DEBIAN_FRONTEND=noninteractive \

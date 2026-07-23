@@ -3,7 +3,7 @@
 ## Implementation Tasks
 
 - [x] 1. Create `Dockerfile-v3` with the base image and environment declarations
-  - Add `FROM ghcr.io/actions/actions-runner:2.336.0`
+  - Add `FROM summerwind/actions-runner:ubuntu-24.04`
   - Add `ENV DEBIAN_FRONTEND=noninteractive NVM_DIR=/home/runner/.nvm`
   - Verify the file is named `Dockerfile-v3` in the repo root
   - **Requirement:** 1.1, 1.3, 8.3
@@ -19,8 +19,8 @@
   - **Requirement:** 3.1
 
 - [x] 4. Install system libraries
-  - Install all 13 libraries in one `RUN`: `libcurl4-openssl-dev`, `pkg-config`,
-    `libssl-dev`, `libfreetype6-dev`, `libjpeg62-turbo-dev`, `libpng-dev`,
+  - Install all 14 libraries in one `RUN`: `build-essential`, `libcurl4-openssl-dev`, `pkg-config`,
+    `libssl-dev`, `libfreetype6-dev`, `libjpeg-turbo8-dev`, `libpng-dev`,
     `zlib1g-dev`, `libzip-dev`, `libonig-dev`, `libxml2-dev`, `libicu-dev`,
     `libgmp-dev`
   - Clean `apt` lists in the same layer
@@ -28,10 +28,12 @@
 
 - [x] 5. Install PHP 8.4-FPM and extensions
   - Install `php8.4`, `php8.4-fpm`, `php8.4-cli`, `php8.4-dev`, `php-pear`
-  - Install extension packages: `php8.4-curl`, `php8.4-gd`, `php8.4-mbstring`,
-    `php8.4-xml`, `php8.4-zip`, `php8.4-intl`, `php8.4-gmp`
+  - Install extension packages: `php8.4-bcmath`, `php8.4-curl`, `php8.4-exif`,
+    `php8.4-gd`, `php8.4-mbstring`, `php8.4-xml`, `php8.4-zip`, `php8.4-intl`,
+    `php8.4-gmp`, `php8.4-soap`, `php8.4-sqlite3`, `php8.4-redis`
   - Run `phpinfo()` grep checks for FreeType and JPEG (fail build if absent)
-  - Run `phpenmod -v 8.4 curl gd mbstring xml zip intl gmp`
+  - Run `phpenmod -v 8.4 bcmath curl exif gd intl mbstring gmp redis soap sqlite3 xml zip`
+  - `php8.4-sqlite3` provides `sqlite3`, `pdo`, and `pdo_sqlite` extensions
   - Clean `apt` lists in the same layer
   - **Requirement:** 3.1, 3.2, 3.3, 3.4, 3.5, 3.6
 
@@ -67,3 +69,18 @@
   - Verify `nvm --version` is accessible after `source ~/.nvm/nvm.sh`
   - Verify `nvm use 24 && node --version` reports v24.x
   - **Requirement:** 3.2, 3.3, 4.1, 5.5, 5.6
+
+- [x] 11. Validate `Dockerfile-v3` correctness
+  - Confirm the file starts with `FROM summerwind/actions-runner:ubuntu-24.04`
+  - Confirm `ENV` declares both `DEBIAN_FRONTEND=noninteractive` and `NVM_DIR=/home/runner/.nvm`
+  - Confirm bootstrap layer installs `gnupg` and `software-properties-common` and cleans apt lists in the same `RUN`
+  - Confirm the ondrej/php PPA is registered in its own `RUN` step (separate from the system-library block)
+  - Confirm all 13 system libraries are present in the system-libraries `RUN` step and apt lists are cleaned
+  - Confirm PHP 8.4-FPM, `php8.4-dev`, `php-pear`, and all 12 extension packages are installed and `phpenmod` is called for each
+  - Confirm the FreeType and JPEG `phpinfo()` grep checks are present in the PHP install layer
+  - Confirm `pecl install mongodb-2.3.3`, the `.ini` file write, and `phpenmod mongodb` are all present
+  - Confirm nvm install runs with `HOME=/home/runner`, `chown -R runner:runner /home/runner/.nvm` follows, both Node 22 and 24 are installed, default alias is 22, and `/etc/environment` is updated with the Node 22 bin path
+  - Confirm `USER runner` is the last instruction in the file with no subsequent `RUN` steps
+  - Run `docker build -f Dockerfile-v3 --check .` (BuildKit dry-run) if Docker is available, to catch syntax errors without a full build
+  - Produce a pass/fail summary for each check above
+  - **Requirement:** 1.1, 1.3, 2.1, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.2, 4.3, 5.1, 5.5, 6.3

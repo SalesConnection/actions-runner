@@ -14,7 +14,7 @@ The image is built and distributed via Docker Hub under the `jayscgi/actions-run
 
 **User Story:** As a platform engineer, I want the custom runner image to be based on the official ARC runner image so that it remains compatible with Actions Runner Controller and receives upstream security updates.
 
-1. The image shall use `ghcr.io/actions/actions-runner:2.336.0` as the base image.
+1. The image shall use `summerwind/actions-runner:ubuntu-24.04` as the base image.
 2. The image shall preserve all components of the base image (including optional components such as example workflows and documentation) to ensure nothing breaks; where the addition of new tools or dependencies requires modifying non-essential base image files, such modifications are permitted, but runner-critical files and configurations shall not be removed or overwritten.
 3. The runner user (`runner`) shall remain the default active user at the end of the Dockerfile.
 
@@ -22,7 +22,7 @@ The image is built and distributed via Docker Hub under the `jayscgi/actions-run
 
 **User Story:** As a developer using the runner, I want all required system-level development libraries pre-installed so that PHP extensions and other tools compile and link correctly without manual intervention.
 
-1. The image shall install the following system libraries via `apt-get`: `gnupg`, `libcurl4-openssl-dev`, `pkg-config`, `libssl-dev`, `libfreetype6-dev`, `libjpeg62-turbo-dev`, `libpng-dev`, `zlib1g-dev`, `libzip-dev`, `libonig-dev`, `libxml2-dev`, `libicu-dev`, `libgmp-dev`.
+1. The image shall install the following system libraries via `apt-get`: `gnupg`, `build-essential`, `libcurl4-openssl-dev`, `pkg-config`, `libssl-dev`, `libfreetype6-dev`, `libjpeg-turbo8-dev`, `libpng-dev`, `zlib1g-dev`, `libzip-dev`, `libonig-dev`, `libxml2-dev`, `libicu-dev`, `libgmp-dev`.
 2. The image shall run `apt-get update` before installing any packages.
 3. The image shall use non-interactive flags (e.g., `DEBIAN_FRONTEND=noninteractive`, `-yq`) during all package installation steps.
 4. The image shall remove `/var/lib/apt/lists/*` after each `RUN` layer that performs `apt-get` operations to keep layer sizes minimal.
@@ -32,11 +32,12 @@ The image is built and distributed via Docker Hub under the `jayscgi/actions-run
 **User Story:** As a developer using the runner, I want PHP 8.4 with FPM and a comprehensive set of extensions pre-installed so that PHP-based CI jobs can run immediately without any setup steps.
 
 1. The image shall install PHP 8.4 and `php8.4-fpm` from a compatible package source (e.g., the `ondrej/php` PPA) that provides PHP 8.4 packages for Ubuntu 24.04.
-2. The image shall install and enable the following PHP extensions: `curl`, `gd`, `mbstring`, `xml`, `zip`, `intl`, `gmp`.
+2. The image shall install and enable the following PHP extensions: `bcmath`, `curl`, `exif`, `gd`, `intl`, `mbstring`, `gmp`, `redis`, `soap`, `sqlite3` (which provides `pdo` and `pdo_sqlite`), `xml`, `zip`.
 3. The `gd` extension shall be compiled with FreeType and JPEG support (e.g., `--with-freetype --with-jpeg` or equivalent flags).
 4. All installed PHP extensions shall be enabled for both the PHP CLI and PHP-FPM SAPIs.
 5. The `php-fpm` binary and configuration shall be present and in a valid, startable state after the image build.
 6. `pecl` (from `php-pear` or the PHP package source) shall be installed and available for use by subsequent extension installation steps.
+7. The image shall install and enable the `redis` PHP extension (`php8.4-redis`) for both the PHP CLI and PHP-FPM SAPIs.
 
 ### Requirement 4: MongoDB PHP Extension
 
@@ -80,14 +81,14 @@ The image is built and distributed via Docker Hub under the `jayscgi/actions-run
 **User Story:** As a future maintainer, I want the Dockerfile to be clearly commented and to have all pinned versions explicitly stated so that dependency updates are straightforward to identify and apply.
 
 1. The Dockerfile shall include inline comments identifying the purpose of each major installation block (e.g., system libraries, PHP, nvm, MongoDB extension).
-2. All pinned dependency versions (e.g., `mongodb-2.3.3`, `ghcr.io/actions/actions-runner:2.336.0`) shall be explicitly stated in the relevant `RUN` commands or `FROM` instruction.
+2. All pinned dependency versions (e.g., `mongodb-2.3.3`, `summerwind/actions-runner:ubuntu-24.04`) shall be explicitly stated in the relevant `RUN` commands or `FROM` instruction.
 3. The Dockerfile shall be named `Dockerfile-v3` to follow the existing versioning convention (`Dockerfile`, `Dockerfile-v2`) in the repository.
 
 ---
 
 ## Constraints and Assumptions
 
-- **Base image OS**: `ghcr.io/actions/actions-runner:2.336.0` is Ubuntu 24.04 (Noble Numbat)-based. All package sources and installation commands target Ubuntu 24.04.
+- **Base image OS**: `summerwind/actions-runner:ubuntu-24.04` is Ubuntu 24.04 (Noble Numbat)-based. All package sources and installation commands target Ubuntu 24.04.
 - **PHP 8.4 availability**: PHP 8.4 may not be present in the default Ubuntu 24.04 `apt` repository. An external PPA (e.g., `ppa:ondrej/php`) shall be used; the specification does not mandate a specific mechanism as long as Requirements 3.1–3.6 are satisfied.
 - **No daemon management**: The image runs in an ephemeral runner container. Services such as `php-fpm` are not started as system daemons; CI jobs start them as needed. The requirement is that binaries and configuration are present and valid.
 - **Network access**: The build environment has outbound internet access to reach `apt` repositories, GitHub (for nvm), and PECL (for the MongoDB extension).

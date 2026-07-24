@@ -33,6 +33,9 @@ summerwind/actions-runner:ubuntu-24.04   ← upstream ARC base (Ubuntu 24.04)
   MongoDB 2.3.3 (pecl)                    ← isolated layer; version bump only re-runs this
         │
         ▼
+  Composer 2.10.2 (official installer)    ← isolated layer; depends only on PHP CLI being on PATH
+        │
+        ▼
   nvm + Node 22 (default) + Node 24       ← user-space install; isolated from system PHP
         │
         ▼
@@ -86,8 +89,8 @@ layer because they are its build-time and runtime dependencies — if PHP is rei
 these libraries are already cached. `build-essential` (gcc, make) is included because
 `pecl` compiles the MongoDB extension from C source at build time.
 
-> **Note:** `openssh-client` (Requirement 9) is **not installed** in `Dockerfile-v3`.
-> SSH agent support is deferred — see Section 9.
+`openssh-client` (Requirement 9) is included in this layer, providing `ssh-agent` and
+`ssh-add`. See Section 9 for SSH agent usage details.
 
 ### 2.6 PHP 8.4-FPM, Extensions, and pecl
 
@@ -111,7 +114,22 @@ installation. After `pecl install mongodb-2.3.3`, a drop-in `.ini` is written to
 `/etc/php/8.4/mods-available/mongodb.ini` and `phpenmod -v 8.4 mongodb` symlinks it
 into both `cli/conf.d` and `fpm/conf.d`.
 
-### 2.8 nvm, Node 22, and Node 24
+### 2.8 Composer 2.10.2
+
+Isolated in its own `RUN` layer, after the PHP install layer and independent of the
+MongoDB layer, so a Composer version bump doesn't re-run either. The installer script
+is fetched from `https://getcomposer.org/installer`, its SHA-384 checksum is computed
+and compared against the checksum published at `https://composer.github.io/installer.sig`,
+and the build aborts (non-zero exit) if they don't match. The installer is then invoked
+with `--version=2.10.2 --install-dir=/usr/local/bin --filename=composer`, and the
+downloaded `composer-setup.php` script is deleted in the same layer.
+
+Installing to `/usr/local/bin` (already on `PATH` for all users, root and `runner`
+alike) means no `.bashrc`/`.profile`/`/etc/environment` changes are needed — unlike
+nvm/Node, which require PATH injection because they install into the user's home
+directory.
+
+### 2.9 nvm, Node 22, and Node 24
 
 nvm is installed as root with `HOME=/home/runner` so the install lands in
 `/home/runner/.nvm`. Ownership is then corrected to `runner:runner`.
@@ -125,7 +143,7 @@ Shell init lines are appended to both `.bashrc` (interactive non-login) and `.pr
 `/etc/environment` PATH so that non-interactive, non-login shells (the default in GitHub
 Actions steps) can resolve `node` and `npm` without sourcing nvm manually.
 
-### 2.9 USER Instruction
+### 2.10 USER Instruction
 
 `USER runner` is the final instruction. All preceding steps that require root have
 completed. This satisfies the ARC requirement that the runner user is the active user
@@ -143,8 +161,9 @@ when the container starts.
 | 4 | System libraries | Stable, ~120 MB | Large layer; placed early so PHP version bumps don't re-download it |
 | 5 | PHP 8.4 + extensions | Changes on PHP bumps | Depends on layers 2–4 being cached |
 | 6 | MongoDB pecl | Changes on driver bumps | Isolated; doesn't invalidate PHP layer |
-| 7 | nvm + Node 22 + 24 | Changes on Node bumps | User-space; isolated from system PHP |
-| 8 | USER runner | Immutable | Must be last |
+| 7 | Composer installer | Changes on Composer bumps | Isolated; only depends on PHP CLI being on PATH |
+| 8 | nvm + Node 22 + 24 | Changes on Node bumps | User-space; isolated from system PHP |
+| 9 | USER runner | Immutable | Must be last |
 
 ---
 
@@ -210,7 +229,35 @@ Workflows that need Node 24 use `source ~/.nvm/nvm.sh && nvm use 24` or
 
 ---
 
-## 6. Multi-Arch Considerations
+## 6. Composer Installation and Verification
+
+Composer is installed via the official PHP-based installer rather than the
+`composer` package available from the ondrej/php PPA, so that the exact version
+(`2.10.2`) is pinned per Requirement 8.2 and independently verified, rather than
+tracking whatever version the PPA currently ships (see Decision 6).
+
+```bash
+php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+php -r "if (hash_file('sha384', '/tmp/composer-setup.php') !== file_get_contents('https://composer.github.io/installer.sig')) { unlink('/tmp/composer-setup.php'); exit(1); }"
+sudo php /tmp/composer-setup.php --version=2.10.2 --install-dir=/usr/local/bin --filename=composer
+rm /tmp/composer-setup.php
+```
+
+The second command exits non-zero and removes the downloaded script if the SHA-384
+checksum doesn't match the checksum published at `composer.github.io/installer.sig`,
+which fails the `RUN` step and aborts the build (Requirement 10.3). `--install-dir` and
+`--filename` place the binary directly at `/usr/local/bin/composer`, already on `PATH`
+for every user, satisfying Requirement 10.4 without further shell configuration.
+
+The installer script is downloaded to `/tmp` rather than the current working directory:
+the runner user (the effective, non-root user for every `RUN` in this Dockerfile — hence
+the `sudo` prefixes throughout) cannot write to the default working directory, but `/tmp`
+is world-writable. `sudo` is used only for the install step, since `/usr/local/bin`
+requires root to write.
+
+---
+
+## 7. Multi-Arch Considerations
 
 | Component | amd64 | arm64 | Notes |
 |-----------|:-----:|:-----:|-------|
@@ -220,6 +267,7 @@ Workflows that need Node 24 use `source ~/.nvm/nvm.sh && nvm use 24` or
 | nvm | ✓ | ✓ | Shell script; architecture-agnostic |
 | Node 22 & 24 | ✓ | ✓ | nvm downloads the correct binary per arch |
 | mongodb-2.3.3 (pecl) | ✓ | ✓ | Compiles from source; no pre-built binary required |
+| Composer 2.10.2 | ✓ | ✓ | Pure PHP `.phar`; architecture-agnostic |
 
 No platform-specific `RUN --platform` branching is needed. The existing workflow uses
 `docker/setup-qemu-action@v2` to emulate arm64 on amd64 build hosts. Note that
@@ -228,7 +276,7 @@ this is a build-time concern only.
 
 ---
 
-## 7. Key Design Decisions
+## 8. Key Design Decisions
 
 ### Decision 1: apt-installed PHP vs docker-official PHP image
 
@@ -275,16 +323,27 @@ files to a clean final stage.
 libraries, yielding no meaningful size reduction while adding significant Dockerfile
 complexity.
 
+### Decision 6: Composer via official installer vs ondrej/php `composer` package
+
+**Chosen:** Official installer script (`getcomposer.org/installer`) with SHA-384
+checksum verification, pinned to `--version=2.10.2`.
+**Alternative:** `apt install composer` from the already-registered ondrej/php PPA.
+**Rationale:** Per user decision, the official installer allows pinning an exact
+Composer release and independently verifying its integrity via checksum, consistent
+with the explicit-pinning convention already used for the MongoDB driver (Decision 4)
+and Requirement 8.2. The PPA package tracks whatever version ondrej/php currently
+ships, which is not independently reproducible or verifiable the same way.
+
 ---
 
-## 8. Complete Dockerfile-v3
+## 9. Complete Dockerfile-v3
 
 The listing below is an exact copy of `Dockerfile-v3` as it exists in the repository.
 
 ```dockerfile
 # Dockerfile-v3
 # ARC runner image with nvm, Node.js 22 (default) + 24, PHP 8.4-FPM,
-# MongoDB PHP extension 2.3.3, and required system libraries.
+# MongoDB PHP extension 2.3.3, Composer, and required system libraries.
 #
 # Base:    summerwind/actions-runner:ubuntu-24.04
 # Targets: linux/amd64, linux/arm64
@@ -312,7 +371,8 @@ RUN sudo add-apt-repository -y ppa:ondrej/php && \
 
 # ── System libraries ───────────────────────────────────────────────────────────
 # Build-time and runtime dependencies for PHP extensions (gd, curl, zip, intl,
-# gmp, mongodb). Installed before PHP so this layer is cached on PHP version bumps.
+# gmp, mongodb) and SSH agent support (openssh-client).
+# Installed before PHP so this layer is cached on PHP version bumps.
 RUN sudo apt-get install -yq --no-install-recommends \
         build-essential \
         libcurl4-openssl-dev \
@@ -326,7 +386,8 @@ RUN sudo apt-get install -yq --no-install-recommends \
         libonig-dev \
         libxml2-dev \
         libicu-dev \
-        libgmp-dev && \
+        libgmp-dev \
+        openssh-client && \
     sudo rm -rf /var/lib/apt/lists/*
 
 # ── PHP 8.4-FPM + extensions ───────────────────────────────────────────────────
@@ -366,6 +427,16 @@ RUN sudo pecl install mongodb-2.3.3 && \
     echo "extension=mongodb.so" | sudo tee /etc/php/8.4/mods-available/mongodb.ini > /dev/null && \
     sudo phpenmod -v 8.4 mongodb
 
+# ── Composer 2.10.2 (official installer) ───────────────────────────────────────
+# Downloads the installer, verifies its SHA-384 checksum against the published
+# installer.sig before executing it, then installs the pinned version straight to
+# /usr/local/bin (already on PATH for every user). Aborts the build on a checksum
+# mismatch. The downloaded installer script is removed in this same layer.
+RUN php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');" && \
+    php -r "if (hash_file('sha384', '/tmp/composer-setup.php') !== file_get_contents('https://composer.github.io/installer.sig')) { unlink('/tmp/composer-setup.php'); exit(1); }" && \
+    sudo php /tmp/composer-setup.php --version=2.10.2 --install-dir=/usr/local/bin --filename=composer && \
+    rm /tmp/composer-setup.php
+
 # ── nvm + Node.js 22 (default) + Node.js 24 ───────────────────────────────────
 # Installed as root with HOME overridden so nvm lands in /home/runner/.nvm.
 # Ownership is corrected to runner:runner after installation.
@@ -400,37 +471,32 @@ USER runner
 
 A static validation task (task 11) was added to the spec to verify `Dockerfile-v3`
 correctness against the spec checklist. The checks include: confirming the `FROM`
-instruction, `ENV` declarations, bootstrap layer, PPA registration step, all 13 system
-libraries, PHP packages and `phpenmod` calls, FreeType/JPEG verification greps, MongoDB
-pecl install and `.ini` write, nvm setup with both Node versions, and `USER runner` as
-the final instruction. A `docker build --check` dry-run is also run when Docker is
-available to catch syntax errors without a full build.
+instruction, `ENV` declarations, bootstrap layer, PPA registration step, all system
+libraries (including `openssh-client`), PHP packages and `phpenmod` calls,
+FreeType/JPEG verification greps, MongoDB pecl install and `.ini` write, the Composer
+installer checksum verification and pinned-version invocation, nvm setup with both
+Node versions, and `USER runner` as the final instruction. A `docker build --check`
+dry-run is also run when Docker is available to catch syntax errors without a full
+build.
 
 ---
 
-## 9. SSH Agent (Requirement 9 — Deferred)
+## 10. SSH Agent (Requirement 9)
 
-> **Not implemented in `Dockerfile-v3`.** Requirement 9 (SSH Agent) is out of scope for
-> this version of the image. `openssh-client` is **not** installed, and `ssh-agent` /
-> `ssh-add` are **not** present in the image.
->
-> When SSH agent support is added in a future iteration, the recommended approach is to
-> consolidate `openssh-client` into the existing system libraries `RUN` block (Section
-> 2.5) to satisfy Requirement 9.2 (no additional layer). The binaries are owned by root
-> with world-execute permissions, so the runner user can invoke them without `sudo`
-> once the package is installed.
->
-> No agent socket or daemon should be pre-started in the image. Jobs would start the
-> agent on demand:
->
-> ```bash
-> eval $(ssh-agent -s)
-> echo "${{ secrets.DEPLOY_KEY }}" | ssh-add -
-> ```
+`openssh-client` is installed as part of the system libraries layer (Section 2.5),
+providing `ssh-agent` and `ssh-add`. The binaries are owned by root with world-execute
+permissions, so the runner user can invoke them without `sudo`.
+
+No agent socket or daemon is pre-started in the image. Jobs start the agent on demand:
+
+```bash
+eval $(ssh-agent -s)
+echo "${{ secrets.DEPLOY_KEY }}" | ssh-add -
+```
 
 ---
 
-## 10. Workflow Integration Notes
+## 11. Workflow Integration Notes
 
 The `.github/workflows/docker-build.yml` workflow has been updated to build
 `Dockerfile-v3`. The relevant step currently reads:

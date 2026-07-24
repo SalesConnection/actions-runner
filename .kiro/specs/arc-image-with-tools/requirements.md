@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This specification covers the construction of a custom ARC (Actions Runner Controller) Docker image that extends the official GitHub Actions runner base image with a set of pre-installed development tools and PHP infrastructure. The resulting image is intended for use as a self-hosted runner in GitHub Actions workflows that require Node.js (via nvm), PHP 8.4 with FPM, MongoDB integration via PHP, SSH agent support for key management and forwarding, and a set of common system libraries — all ready to use without additional provisioning steps at job runtime.
+This specification covers the construction of a custom ARC (Actions Runner Controller) Docker image that extends the official GitHub Actions runner base image with a set of pre-installed development tools and PHP infrastructure. The resulting image is intended for use as a self-hosted runner in GitHub Actions workflows that require Node.js (via nvm), PHP 8.4 with FPM, MongoDB integration via PHP, Composer for PHP dependency management, SSH agent support for key management and forwarding, and a set of common system libraries — all ready to use without additional provisioning steps at job runtime.
 
 The image is built and distributed via Docker Hub under the `jayscgi/actions-runner` repository, tagged by version and `latest`, targeting both `linux/amd64` and `linux/arm64` platforms. The Dockerfile shall be named `Dockerfile-v3` to follow the existing versioning convention.
 
@@ -81,7 +81,7 @@ The image is built and distributed via Docker Hub under the `jayscgi/actions-run
 **User Story:** As a future maintainer, I want the Dockerfile to be clearly commented and to have all pinned versions explicitly stated so that dependency updates are straightforward to identify and apply.
 
 1. The Dockerfile shall include inline comments identifying the purpose of each major installation block (e.g., system libraries, PHP, nvm, MongoDB extension).
-2. All pinned dependency versions (e.g., `mongodb-2.3.3`, `summerwind/actions-runner:ubuntu-24.04`) shall be explicitly stated in the relevant `RUN` commands or `FROM` instruction.
+2. All pinned dependency versions (e.g., `mongodb-2.3.3`, `composer` version `2.10.2`, `summerwind/actions-runner:ubuntu-24.04`) shall be explicitly stated in the relevant `RUN` commands or `FROM` instruction.
 3. The Dockerfile shall be named `Dockerfile-v3` to follow the existing versioning convention (`Dockerfile`, `Dockerfile-v2`) in the repository.
 
 ### Requirement 9: SSH Agent
@@ -94,6 +94,18 @@ The image is built and distributed via Docker Hub under the `jayscgi/actions-run
 4. WHEN a CI job step invokes `ssh-agent`, THE runner user SHALL be able to start a new agent process and obtain a valid `SSH_AUTH_SOCK` socket path.
 5. WHEN an `ssh-agent` process is running, THE runner user SHALL be able to load an SSH private key into the agent using `ssh-add` as part of a normal CI job step.
 
+### Requirement 10: Composer
+
+**User Story:** As a developer using the runner, I want Composer pre-installed so that PHP-based CI jobs can install PHP dependencies immediately without any additional setup steps.
+
+1. THE image SHALL install Composer version `2.10.2` using the official installer script obtained from `https://getcomposer.org/installer`.
+2. THE Dockerfile SHALL compute the SHA-384 checksum of the downloaded installer script and compare it against the checksum published at `https://composer.github.io/installer.sig` before executing the installer script.
+3. WHEN the computed checksum does not match the published checksum, THE Dockerfile SHALL abort the build without executing the installer script.
+4. THE image SHALL install the `composer` binary to `/usr/local/bin/composer` so that it is available on `PATH` for all users without additional shell configuration.
+5. THE runner user SHALL be able to invoke `composer` without requiring `sudo`.
+6. THE Dockerfile SHALL remove the downloaded installer script (`composer-setup.php`) within the same `RUN` layer in which it is created.
+7. THE Composer installation step SHALL occur after PHP 8.4 CLI (Requirement 3) is installed and available on `PATH`, because the installer script is executed via `php`.
+
 ---
 
 ## Constraints and Assumptions
@@ -101,6 +113,6 @@ The image is built and distributed via Docker Hub under the `jayscgi/actions-run
 - **Base image OS**: `summerwind/actions-runner:ubuntu-24.04` is Ubuntu 24.04 (Noble Numbat)-based. All package sources and installation commands target Ubuntu 24.04.
 - **PHP 8.4 availability**: PHP 8.4 may not be present in the default Ubuntu 24.04 `apt` repository. An external PPA (e.g., `ppa:ondrej/php`) shall be used; the specification does not mandate a specific mechanism as long as Requirements 3.1–3.6 are satisfied.
 - **No daemon management**: The image runs in an ephemeral runner container. Services such as `php-fpm` are not started as system daemons; CI jobs start them as needed. The requirement is that binaries and configuration are present and valid.
-- **Network access**: The build environment has outbound internet access to reach `apt` repositories, GitHub (for nvm), and PECL (for the MongoDB extension).
+- **Network access**: The build environment has outbound internet access to reach `apt` repositories, GitHub (for nvm), PECL (for the MongoDB extension), and `getcomposer.org` / `composer.github.io` (for the Composer installer and its checksum).
 - **CI/CD pipeline**: The existing workflow at `.github/workflows/docker-build.yml` builds and pushes on version tags. This specification does not modify the workflow; only the Dockerfile is in scope.
 - **Secrets**: Docker Hub credentials (`DOCKER_USERNAME`, `DOCKER_PASSWORD`) are stored as GitHub Actions secrets and are out of scope.

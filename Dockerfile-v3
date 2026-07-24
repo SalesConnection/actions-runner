@@ -1,6 +1,6 @@
 # Dockerfile-v3
 # ARC runner image with nvm, Node.js 22 (default) + 24, PHP 8.4-FPM,
-# MongoDB PHP extension 2.3.3, and required system libraries.
+# MongoDB PHP extension 2.3.3, Composer, and required system libraries.
 #
 # Base:    summerwind/actions-runner:ubuntu-24.04
 # Targets: linux/amd64, linux/arm64
@@ -83,6 +83,16 @@ RUN sudo apt-get update -yq && \
 RUN sudo pecl install mongodb-2.3.3 && \
     echo "extension=mongodb.so" | sudo tee /etc/php/8.4/mods-available/mongodb.ini > /dev/null && \
     sudo phpenmod -v 8.4 mongodb
+
+# ── Composer 2.10.2 (official installer) ───────────────────────────────────────
+# Downloads the installer, verifies its SHA-384 checksum against the published
+# installer.sig before executing it, then installs the pinned version straight to
+# /usr/local/bin (already on PATH for every user). Aborts the build on a checksum
+# mismatch. The downloaded installer script is removed in this same layer.
+RUN php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');" && \
+    php -r "if (hash_file('sha384', '/tmp/composer-setup.php') !== file_get_contents('https://composer.github.io/installer.sig')) { unlink('/tmp/composer-setup.php'); exit(1); }" && \
+    sudo php /tmp/composer-setup.php --version=2.10.2 --install-dir=/usr/local/bin --filename=composer && \
+    rm /tmp/composer-setup.php
 
 # ── nvm + Node.js 22 (default) + Node.js 24 ───────────────────────────────────
 # Installed as root with HOME overridden so nvm lands in /home/runner/.nvm.

@@ -93,3 +93,20 @@
   - Update the system libraries comment in `Dockerfile-v3` to note `openssh-client`
   - Re-run task 11 validation checks after this change to confirm nothing regressed
   - **Requirement:** 9.1, 9.2, 9.3, 9.4, 9.5
+
+- [x] 13. Add Composer 2.10.2 to `Dockerfile-v3` — Requirement 10
+  - Add a new `RUN` layer after the MongoDB pecl layer (task 6) and before the nvm layer (task 7)
+  - Download the installer: `php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"`
+  - In the same `RUN` layer, verify the installer's SHA-384 checksum against `https://composer.github.io/installer.sig`; make the command fail with a non-zero exit if the checksums do not match
+  - Install the pinned version to `/usr/local/bin`: `php composer-setup.php --version=2.10.2 --install-dir=/usr/local/bin --filename=composer`
+  - Remove `composer-setup.php` in the same `RUN` layer
+  - Update the Dockerfile header comment to mention Composer
+  - **Requirement:** 10.1, 10.2, 10.3, 10.4, 10.6, 10.7
+
+- [x] 14. Verify Composer installation
+  - Build the image locally: `docker build -f Dockerfile-v3 -t arc-runner-v3-test .` (or reuse the task 10 build)
+  - Verify `composer --version` reports `2.10.2`
+  - Verify the runner user can execute `composer --version` without `sudo`
+  - Verify `which composer` resolves to `/usr/local/bin/composer`
+  - Re-run task 11 validation checks after this change to confirm nothing regressed
+  - **Requirement:** 10.1, 10.4, 10.5

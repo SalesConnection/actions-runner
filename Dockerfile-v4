@@ -1,0 +1,125 @@
+# Dockerfile-v4
+# PHP 8.5 variant of Dockerfile-v3. Dockerfile-v3 remains the PHP 8.4 variant.
+# ARC runner image with nvm, Node.js 22 (default) + 24, PHP 8.5-FPM,
+# MongoDB PHP extension 2.5.5, Composer, and required system libraries.
+#
+# Base:    summerwind/actions-runner:ubuntu-24.04
+# Targets: linux/amd64, linux/arm64
+
+FROM summerwind/actions-runner:ubuntu-24.04
+
+# ── Environment ────────────────────────────────────────────────────────────────
+ENV DEBIAN_FRONTEND=noninteractive \
+    NVM_DIR=/home/runner/.nvm
+
+# ── Bootstrap: gnupg + software-properties-common ─────────────────────────────
+# Required to import the ondrej/php PPA signing key and run add-apt-repository.
+# Isolated layer so changes to the system-library list below don't invalidate this.
+RUN sudo apt-get update -yq && \
+    sudo apt-get install -yq --no-install-recommends \
+        gnupg \
+        software-properties-common && \
+    sudo rm -rf /var/lib/apt/lists/*
+
+# ── PHP 8.5 PPA ────────────────────────────────────────────────────────────────
+# Ubuntu 24.04 does not ship PHP 8.5 in its default repositories.
+# The ondrej/php PPA is the standard community source for PHP 8.5 on Ubuntu.
+RUN sudo add-apt-repository -y ppa:ondrej/php && \
+    sudo apt-get update -yq
+
+# ── System libraries ───────────────────────────────────────────────────────────
+# Build-time and runtime dependencies for PHP extensions (gd, curl, zip, intl,
+# gmp, mongodb) and SSH agent support (openssh-client).
+# Installed before PHP so this layer is cached on PHP version bumps.
+RUN sudo apt-get install -yq --no-install-recommends \
+        build-essential \
+        libcurl4-openssl-dev \
+        pkg-config \
+        libssl-dev \
+        libfreetype6-dev \
+        libjpeg-turbo8-dev \
+        libpng-dev \
+        zlib1g-dev \
+        libzip-dev \
+        libonig-dev \
+        libxml2-dev \
+        libicu-dev \
+        libgmp-dev \
+        openssh-client && \
+    sudo rm -rf /var/lib/apt/lists/*
+
+# ── PHP 8.5-FPM + extensions ───────────────────────────────────────────────────
+# php8.5-dev     — PHP headers required by pecl to compile the MongoDB extension.
+# php-pear       — provides the pecl command.
+# php8.5-gd      — built by ondrej/php with --with-freetype and --with-jpeg.
+# php8.5-sqlite3 — provides sqlite3, pdo, and pdo_sqlite extensions.
+# Verification step fails the build if gd lacks FreeType or JPEG support.
+RUN sudo apt-get update -yq && \
+    sudo apt-get install -yq --no-install-recommends \
+        php8.5 \
+        php8.5-fpm \
+        php8.5-cli \
+        php8.5-dev \
+        php8.5-bcmath \
+        php8.5-curl \
+        php8.5-exif \
+        php8.5-gd \
+        php8.5-mbstring \
+        php8.5-xml \
+        php8.5-zip \
+        php8.5-intl \
+        php8.5-gmp \
+        php8.5-soap \
+        php8.5-sqlite3 \
+        php8.5-redis \
+        php-pear && \
+    php -r "phpinfo();" | grep -i "freetype" > /dev/null && \
+    php -r "phpinfo();" | grep -i "jpeg" > /dev/null && \
+    sudo phpenmod -v 8.5 bcmath curl exif gd intl mbstring gmp redis soap sqlite3 xml zip && \
+    sudo rm -rf /var/lib/apt/lists/*
+
+# ── MongoDB PHP extension 2.5.5 (via pecl) ─────────────────────────────────────
+# 2.5.x is the MongoDB extension line that supports PHP 8.5; 2.3.3 (used by v3)
+# predates PHP 8.5 support. Compiled against the PHP 8.5 headers installed above.
+RUN sudo pecl install mongodb-2.5.5 && \
+    echo "extension=mongodb.so" | sudo tee /etc/php/8.5/mods-available/mongodb.ini > /dev/null && \
+    sudo phpenmod -v 8.5 mongodb
+
+# ── Composer 2.10.2 (official installer) ───────────────────────────────────────
+# Downloads the installer, verifies its SHA-384 checksum against the published
+# installer.sig before executing it, then installs the pinned version straight to
+# /usr/local/bin (already on PATH for every user). Aborts the build on a checksum
+# mismatch. The downloaded installer script is removed in this same layer.
+RUN php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');" && \
+    php -r "if (hash_file('sha384', '/tmp/composer-setup.php') !== file_get_contents('https://composer.github.io/installer.sig')) { unlink('/tmp/composer-setup.php'); exit(1); }" && \
+    sudo php /tmp/composer-setup.php --version=2.10.2 --install-dir=/usr/local/bin --filename=composer && \
+    rm /tmp/composer-setup.php
+
+# ── nvm + Node.js 22 (default) + Node.js 24 ───────────────────────────────────
+# Installed as root with HOME overridden so nvm lands in /home/runner/.nvm.
+# Ownership is corrected to runner:runner after installation.
+#
+# Both Node 22 and Node 24 are pre-installed; 22 is set as the default alias.
+#
+# /etc/environment PATH is updated with the Node 22 bin directory so that
+# non-interactive, non-login shells (the GitHub Actions default) can resolve
+# `node` and `npm` without sourcing nvm explicitly.
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/HEAD/install.sh | sudo HOME=/home/runner bash && \
+    sudo chown -R runner:runner /home/runner/.nvm && \
+    # Install Node 22 and 24; set 22 as default
+    bash -c ". $NVM_DIR/nvm.sh && nvm install 22 && nvm install 24 && nvm alias default 22 && nvm use default" && \
+    # Append nvm init to .bashrc (interactive non-login shells)
+    echo 'export NVM_DIR="$HOME/.nvm"'                                      >> /home/runner/.bashrc && \
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'                >> /home/runner/.bashrc && \
+    echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> /home/runner/.bashrc && \
+    # Append nvm init to .profile (login shells)
+    echo 'export NVM_DIR="$HOME/.nvm"'                                      >> /home/runner/.profile && \
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'                >> /home/runner/.profile && \
+    # Add Node 22 bin to system PATH for non-interactive shells
+    NODE22_BIN=$(bash -c ". $NVM_DIR/nvm.sh && nvm which 22 | xargs dirname") && \
+    echo "PATH=${NODE22_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+        | sudo tee /etc/environment > /dev/null
+
+# ── Restore runner user ────────────────────────────────────────────────────────
+# ARC requires the container to run as the `runner` user.
+USER runner

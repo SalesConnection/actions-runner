@@ -25,7 +25,8 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Build and push Docker image
+    - name: Build and push Docker image (v3 — PHP 8.4)
+      if: ${{ !endsWith(github.ref_name, '-php8.5') }}
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -33,4 +34,15 @@ jobs:
         platforms: linux/amd64,linux/arm64
         push: true
         tags: jayscgi/actions-runner:${{ github.ref_name }},jayscgi/actions-runner:latest
+        labels: jayscgi/actions-runner:${{ github.ref_name }}
+
+    - name: Build and push Docker image (v4 — PHP 8.5)
+      if: ${{ endsWith(github.ref_name, '-php8.5') }}
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: Dockerfile-v4
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: jayscgi/actions-runner:${{ github.ref_name }},jayscgi/actions-runner:php8.5-latest
         labels: jayscgi/actions-runner:${{ github.ref_name }}
